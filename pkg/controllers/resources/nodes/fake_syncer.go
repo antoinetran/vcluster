@@ -83,6 +83,12 @@ func (r *fakeNodeSyncer) FakeSync(ctx *synccontext.SyncContext, vObj client.Obje
 		return ctrl.Result{}, fmt.Errorf("%#v is not a node", vObj)
 	}
 
+	if node.GetLabels() == nil || (node.GetLabels() != nil && node.GetLabels()[translate.MarkerLabel] != translate.VClusterName) {
+		// This node is not managed by vcluster, doing nothing to it.
+		ctx.Log.Infof("Unmanaged fake node %s, doing nothing.", vObj.GetName())
+		return ctrl.Result{}, nil
+	}
+
 	needed, err := r.nodeNeeded(ctx, node.Name)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -100,6 +106,14 @@ func (r *fakeNodeSyncer) FakeSync(ctx *synccontext.SyncContext, vObj client.Obje
 			return ctrl.Result{}, fmt.Errorf("update node: %w", err)
 		}
 	}
+
+	// Set the marker of managed-by vcluster so that
+	// we skip deleting the nodes which are not managed
+	// by vcluster in `FakeSync` function
+	if len(node.Labels) == 0 {
+		node.Labels = map[string]string{}
+	}
+	node.Labels[translate.MarkerLabel] = translate.VClusterName
 
 	return ctrl.Result{}, nil
 }
